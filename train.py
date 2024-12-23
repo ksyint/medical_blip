@@ -18,12 +18,13 @@ os.environ["CUDA_VISIBLE_DEVICES"]= "0,1"
 trained_model_path = "blip_model_trained1"
 train_sample_size = 10000 
 val_sample_size = 2000  
-checkpoint_dir="output1"
+checkpoint_dir="output2"
 batch_size=32
 num_epochs=500
 Lr=1e-4
 seed=1
 save_total_limit=2
+save_steps=10
 
 
 model_name = "Salesforce/blip-image-captioning-base"
@@ -58,11 +59,12 @@ def preprocess_for_blip(batch):
                 "pixel_values": inputs.pixel_values,
                 "labels": inputs.input_ids
             }
+
 data_collator = DataCollatorForSeq2Seq(
     tokenizer=processor.tokenizer,  
     model=model, 
-    padding=True,
-)
+    padding=True)
+
 train_dataset = processed_dataset["train"].select(range(train_sample_size))
 val_dataset = processed_dataset["validation"].select(range(val_sample_size))
 train_dataset = train_dataset.map(preprocess_for_blip, batched=True)
@@ -74,7 +76,8 @@ val_dataset.set_format(type="torch", columns=["input_ids", "attention_mask", "pi
 training_args = TrainingArguments(
     output_dir=checkpoint_dir, 
     evaluation_strategy="epoch",
-    save_strategy="epoch",
+    save_strategy="steps",
+    save_steps=save_steps,
     per_device_train_batch_size=batch_size,  
     per_device_eval_batch_size=batch_size,  
     num_train_epochs=num_epochs,  
@@ -85,12 +88,14 @@ training_args = TrainingArguments(
     fp16=True,  
     report_to="wandb", 
 )
+
 trainer = Trainer(
     model=model,
     args=training_args,
     train_dataset=train_dataset,
     eval_dataset=val_dataset,
     data_collator=data_collator)
+
 if list(pathlib.Path(training_args.output_dir).glob("checkpoint-*")):
     trainer.train(resume_from_checkpoint=True)
 else:
